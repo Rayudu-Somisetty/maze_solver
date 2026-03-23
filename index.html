@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maze Challenge - User vs AI</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏆 Maze Challenge - User vs AI</h1>
+            <p>Draw the path from start to goal and see how your solution compares to the AI's optimal path!</p>
+        </header>
+
+        <div class="game-wrapper">
+            <div class="canvas-container">
+                <canvas id="mazeCanvas" width="600" height="600"></canvas>
+                <div id="status-message" class="status-message"></div>
+            </div>
+
+            <div class="controls-panel">
+                <div class="difficulty-section">
+                    <label for="gridSize">Difficulty (Grid Size):</label>
+                    <select id="gridSize">
+                        <option value="10">Easy (10x10)</option>
+                        <option value="15" selected>Medium (15x15)</option>
+                        <option value="20">Hard (20x20)</option>
+                        <option value="25">Expert (25x25)</option>
+                    </select>
+                </div>
+
+                <button id="generateBtn" class="btn btn-primary">🔄 Generate New Maze</button>
+                <button id="resetBtn" class="btn btn-secondary">↺ Clear My Path</button>
+                <button id="submitBtn" class="btn btn-success" disabled>✓ Submit Path</button>
+                <button id="showOptimalBtn" class="btn btn-info" disabled>👁️ Show Optimal Path</button>
+
+                <div class="info-panel">
+                    <h3>📊 Game Stats</h3>
+                    <p><strong>Your Path Length:</strong> <span id="userPathLength">-</span></p>
+                    <p><strong>Optimal Path Length:</strong> <span id="optimalPathLength">-</span></p>
+                    <p><strong>Your Score:</strong> <span id="score">-</span></p>
+                </div>
+
+                <div class="legend">
+                    <h3>🎨 Legend</h3>
+                    <div class="legend-item">
+                        <div class="legend-color start"></div>
+                        <span>Start (Green)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color goal"></div>
+                        <span>Goal (Red)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color wall"></div>
+                        <span>Wall (Black)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color path-user"></div>
+                        <span>Your Path (Blue)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color path-optimal"></div>
+                        <span>Optimal Path (Yellow)</span>
+                    </div>
+                </div>
+
+                <div class="instructions">
+                    <h3>📝 How to Play</h3>
+                    <ol>
+                        <li>Click "Generate New Maze" to start</li>
+                        <li>Click and drag to draw a path from green to red</li>
+                        <li>Only valid cells can be drawn on</li>
+                        <li>Click "Submit Path" to check your solution</li>
+                        <li>See how your path compares to AI's optimal path</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
