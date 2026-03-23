@@ -43,6 +43,7 @@ class MazeGame {
         document.getElementById('generateBtn').addEventListener('click', () => this.generateNewMaze());
         document.getElementById('resetBtn').addEventListener('click', () => this.resetUserPath());
         document.getElementById('submitBtn').addEventListener('click', () => this.submitPath());
+        document.getElementById('noPathBtn').addEventListener('click', () => this.submitNoPathClaim());
         document.getElementById('showOptimalBtn').addEventListener('click', () => this.toggleOptimalPath());
         document.getElementById('gridSize').addEventListener('change', (e) => {
             this.gridSize = parseInt(e.target.value);
@@ -83,6 +84,7 @@ class MazeGame {
         this.canSubmit = false;
         this.showOptimal = false;
         document.getElementById('submitBtn').disabled = true;
+        document.getElementById('noPathBtn').disabled = false;
         document.getElementById('showOptimalBtn').disabled = true;
         document.getElementById('showOptimalBtn').textContent = '👁️ Show Optimal Path';
         this.clearStatus();
@@ -96,117 +98,80 @@ class MazeGame {
     }
 
     generateMazeByDFS() {
-        // Initialize maze with all walls
-        let maze = Array(this.gridSize).fill(null).map(() => 
+        // Boundary-free random maze across the entire grid.
+        let maze = Array(this.gridSize).fill(null).map(() =>
             Array(this.gridSize).fill(CONFIG.CELL_TYPES.WALL)
         );
 
-        // Step 1: Recursive backtracking DFS for base structure
-        const visited = Array(this.gridSize).fill(null).map(() => 
-            Array(this.gridSize).fill(false)
-        );
-
-        const carvePassage = (x, y) => {
-            visited[y][x] = true;
-            maze[y][x] = CONFIG.CELL_TYPES.PATH;
-
-            const directions = [
-                { x: 2, y: 0 },
-                { x: 0, y: 2 },
-                { x: -2, y: 0 },
-                { x: 0, y: -2 }
-            ];
-
-            // Shuffle directions
-            for (let i = directions.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [directions[i], directions[j]] = [directions[j], directions[i]];
+        // Step 1: Random fill (no protected borders) with higher wall density.
+        for (let y = 0; y < this.gridSize; y++) {
+            for (let x = 0; x < this.gridSize; x++) {
+                maze[y][x] = Math.random() < 0.42 ? CONFIG.CELL_TYPES.PATH : CONFIG.CELL_TYPES.WALL;
             }
+        }
 
-            for (const dir of directions) {
-                const nx = x + dir.x;
-                const ny = y + dir.y;
+        // Step 2: Random walk carving from multiple seeds.
+        const seedCount = Math.max(4, Math.floor(this.gridSize / 2));
+        for (let seed = 0; seed < seedCount; seed++) {
+            let x = Math.floor(Math.random() * this.gridSize);
+            let y = Math.floor(Math.random() * this.gridSize);
+            let steps = Math.floor(this.gridSize * 1.5) + Math.floor(Math.random() * this.gridSize);
 
-                if (nx > 0 && nx < this.gridSize && ny > 0 && ny < this.gridSize && !visited[ny][nx]) {
-                    maze[y + dir.y / 2][x + dir.x / 2] = CONFIG.CELL_TYPES.PATH;
-                    carvePassage(nx, ny);
-                }
+            while (steps > 0) {
+                maze[y][x] = CONFIG.CELL_TYPES.PATH;
+                const dir = Math.floor(Math.random() * 4);
+                if (dir === 0) x = Math.min(this.gridSize - 1, x + 1);
+                if (dir === 1) y = Math.min(this.gridSize - 1, y + 1);
+                if (dir === 2) x = Math.max(0, x - 1);
+                if (dir === 3) y = Math.max(0, y - 1);
+                steps--;
             }
-        };
+        }
 
-        carvePassage(1, 1);
-
-        // Step 2: Add random walls and obstacles to create complexity
-        for (let y = 2; y < this.gridSize - 2; y++) {
-            for (let x = 2; x < this.gridSize - 2; x++) {
-                if (maze[y][x] === CONFIG.CELL_TYPES.PATH) {
-                    // 40% chance to add strategic walls that block direct routes
-                    if (Math.random() < 0.4) {
-                        const wallDir = Math.floor(Math.random() * 4);
-                        const wallPattern = [
-                            { dx: 0, dy: -1 }, // up
-                            { dx: 1, dy: 0 },  // right
-                            { dx: 0, dy: 1 },  // down
-                            { dx: -1, dy: 0 }  // left
-                        ];
-                        const wd = wallPattern[wallDir];
-                        if (maze[y + wd.dy][x + wd.dx] === CONFIG.CELL_TYPES.PATH) {
-                            if (Math.random() < 0.6) {
-                                maze[y + wd.dy][x + wd.dx] = CONFIG.CELL_TYPES.WALL;
+        // Step 3: Cellular automata smoothing with edge-aware neighbor checks.
+        for (let iteration = 0; iteration < 3; iteration++) {
+            const next = maze.map((row) => [...row]);
+            for (let y = 0; y < this.gridSize; y++) {
+                for (let x = 0; x < this.gridSize; x++) {
+                    let wallNeighbors = 0;
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            if (dx === 0 && dy === 0) continue;
+                            const nx = x + dx;
+                            const ny = y + dy;
+                            if (nx < 0 || ny < 0 || nx >= this.gridSize || ny >= this.gridSize) {
+                                wallNeighbors++;
+                            } else if (maze[ny][nx] === CONFIG.CELL_TYPES.WALL) {
+                                wallNeighbors++;
                             }
                         }
                     }
-                }
-            }
-        }
 
-        // Step 3: Create small rooms/chambers for more complexity
-        for (let attempt = 0; attempt < Math.max(3, Math.floor(this.gridSize / 8)); attempt++) {
-            const rx = Math.floor(Math.random() * (this.gridSize - 6)) + 3;
-            const ry = Math.floor(Math.random() * (this.gridSize - 6)) + 3;
-            const roomSize = 2 + Math.floor(Math.random() * 2);
-            
-            for (let dy = 0; dy <= roomSize; dy++) {
-                for (let dx = 0; dx <= roomSize; dx++) {
-                    if (ry + dy < this.gridSize - 1 && rx + dx < this.gridSize - 1) {
-                        maze[ry + dy][rx + dx] = CONFIG.CELL_TYPES.PATH;
+                    if (wallNeighbors >= 4) {
+                        next[y][x] = CONFIG.CELL_TYPES.WALL;
+                    } else if (wallNeighbors <= 2) {
+                        next[y][x] = CONFIG.CELL_TYPES.PATH;
                     }
                 }
             }
+            maze = next;
         }
 
-        // Step 4: Add random corridors to connect areas
-        for (let attempt = 0; attempt < Math.max(2, Math.floor(this.gridSize / 10)); attempt++) {
-            let x = Math.floor(Math.random() * (this.gridSize - 2)) + 1;
-            let y = Math.floor(Math.random() * (this.gridSize - 2)) + 1;
-            const length = 3 + Math.floor(Math.random() * 4);
-            const direction = Math.floor(Math.random() * 4);
-            
-            for (let i = 0; i < length; i++) {
-                if (x > 0 && x < this.gridSize - 1 && y > 0 && y < this.gridSize - 1) {
-                    maze[y][x] = CONFIG.CELL_TYPES.PATH;
-                    if (direction === 0) x++; // right
-                    else if (direction === 1) y++; // down
-                    else if (direction === 2) x--; // left
-                    else y--; // up
-                }
-            }
-        }
-
-        // Step 5: Add strategic dead-ends and loops
-        for (let y = 2; y < this.gridSize - 2; y++) {
-            for (let x = 2; x < this.gridSize - 2; x++) {
-                if (maze[y][x] === CONFIG.CELL_TYPES.WALL && Math.random() < 0.05) {
-                    maze[y][x] = CONFIG.CELL_TYPES.PATH; // Create random openings
-                }
-            }
-        }
-
-        // Ensure border is walls
-        for (let y = 0; y < this.gridSize; y++) {
-            for (let x = 0; x < this.gridSize; x++) {
-                if (x === 0 || y === 0 || x === this.gridSize - 1 || y === this.gridSize - 1) {
-                    maze[y][x] = CONFIG.CELL_TYPES.WALL;
+        // Step 4: Add random cuts anywhere (including edges) while keeping structure dense.
+        const cuts = Math.max(4, this.gridSize);
+        for (let i = 0; i < cuts; i++) {
+            let x = Math.floor(Math.random() * this.gridSize);
+            let y = Math.floor(Math.random() * this.gridSize);
+            const len = 2 + Math.floor(Math.random() * 6);
+            const horizontal = Math.random() < 0.5;
+            for (let j = 0; j < len; j++) {
+                maze[y][x] = CONFIG.CELL_TYPES.PATH;
+                if (horizontal) {
+                    x += Math.random() < 0.5 ? -1 : 1;
+                    if (x < 0 || x >= this.gridSize) break;
+                } else {
+                    y += Math.random() < 0.5 ? -1 : 1;
+                    if (y < 0 || y >= this.gridSize) break;
                 }
             }
         }
@@ -217,8 +182,8 @@ class MazeGame {
     placeStartAndGoal() {
         // Find all path cells
         const pathCells = [];
-        for (let y = 1; y < this.gridSize - 1; y++) {
-            for (let x = 1; x < this.gridSize - 1; x++) {
+        for (let y = 0; y < this.gridSize; y++) {
+            for (let x = 0; x < this.gridSize; x++) {
                 if (this.maze[y][x] === CONFIG.CELL_TYPES.PATH) {
                     pathCells.push({ x, y });
                 }
@@ -230,17 +195,79 @@ class MazeGame {
             return;
         }
 
-        // Place start at random path cell
-        this.start = pathCells[Math.floor(Math.random() * pathCells.length)];
+        // Pick far, obstacle-heavy pairs to increase challenge.
+        const maxManhattan = (this.gridSize - 1) * 2;
+        let bestPair = null;
+        let bestScore = -Infinity;
+        const attempts = Math.min(260, pathCells.length * 6);
+
+        for (let i = 0; i < attempts; i++) {
+            const start = pathCells[Math.floor(Math.random() * pathCells.length)];
+            let goal = pathCells[Math.floor(Math.random() * pathCells.length)];
+            if (start.x === goal.x && start.y === goal.y) {
+                continue;
+            }
+
+            const manhattan = Math.abs(start.x - goal.x) + Math.abs(start.y - goal.y);
+            if (manhattan < Math.floor(this.gridSize * 0.65)) {
+                continue;
+            }
+
+            const path = this.aStar(start, goal);
+            if (!path) {
+                continue;
+            }
+
+            const minX = Math.min(start.x, goal.x);
+            const maxX = Math.max(start.x, goal.x);
+            const minY = Math.min(start.y, goal.y);
+            const maxY = Math.max(start.y, goal.y);
+            const area = (maxX - minX + 1) * (maxY - minY + 1);
+
+            let walls = 0;
+            for (let y = minY; y <= maxY; y++) {
+                for (let x = minX; x <= maxX; x++) {
+                    if (this.maze[y][x] === CONFIG.CELL_TYPES.WALL) {
+                        walls++;
+                    }
+                }
+            }
+
+            const wallDensity = walls / Math.max(1, area);
+            const detourRatio = path.length / Math.max(1, manhattan);
+            const distanceRatio = manhattan / Math.max(1, maxManhattan);
+            const score = wallDensity * 0.5 + detourRatio * 0.35 + distanceRatio * 0.15;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestPair = { start, goal };
+            }
+        }
+
+        // Fallback to any reachable pair if strict complexity criteria found none.
+        if (!bestPair) {
+            for (let i = 0; i < attempts; i++) {
+                const start = pathCells[Math.floor(Math.random() * pathCells.length)];
+                let goal = pathCells[Math.floor(Math.random() * pathCells.length)];
+                if (start.x === goal.x && start.y === goal.y) {
+                    continue;
+                }
+
+                if (this.aStar(start, goal)) {
+                    bestPair = { start, goal };
+                    break;
+                }
+            }
+        }
+
+        if (!bestPair) {
+            this.generateNewMaze();
+            return;
+        }
+
+        this.start = bestPair.start;
+        this.goal = bestPair.goal;
         this.maze[this.start.y][this.start.x] = CONFIG.CELL_TYPES.START;
-
-        // Place goal at different path cell
-        let goalIdx;
-        do {
-            goalIdx = Math.floor(Math.random() * pathCells.length);
-        } while (pathCells[goalIdx] === this.start);
-
-        this.goal = pathCells[goalIdx];
         this.maze[this.goal.y][this.goal.x] = CONFIG.CELL_TYPES.GOAL;
     }
 
@@ -421,6 +448,7 @@ class MazeGame {
 
     redraw() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        const canRevealOptimal = this.gameState === 'submitted' && this.showOptimal;
 
         // Draw maze
         for (let y = 0; y < this.gridSize; y++) {
@@ -436,9 +464,9 @@ class MazeGame {
                     this.drawCell(x, y, CONFIG.COLORS.START);
                 } else if (cellType === CONFIG.CELL_TYPES.GOAL) {
                     this.drawCell(x, y, CONFIG.COLORS.GOAL);
-                } else if (isUserPath && isOptimalPath) {
+                } else if (canRevealOptimal && isUserPath && isOptimalPath) {
                     this.drawCell(x, y, CONFIG.COLORS.USER_OPTIMAL_OVERLAP);
-                } else if (this.gameState === 'submitted' && this.showOptimal && isOptimalPath) {
+                } else if (canRevealOptimal && isOptimalPath) {
                     this.drawCell(x, y, CONFIG.COLORS.OPTIMAL_PATH);
                 } else if (isUserPath) {
                     this.drawCell(x, y, CONFIG.COLORS.USER_PATH);
@@ -449,7 +477,7 @@ class MazeGame {
         }
 
         // Draw optimal path outline when showing (makes it more visible)
-        if (this.gameState === 'submitted' && this.showOptimal && this.optimalPath) {
+        if (canRevealOptimal && this.optimalPath) {
             for (let i = 0; i < this.optimalPath.length; i++) {
                 const cell = this.optimalPath[i];
                 this.ctx.strokeStyle = '#d4a017';
@@ -492,6 +520,7 @@ class MazeGame {
         this.canSubmit = false;
         this.showOptimal = false;
         document.getElementById('submitBtn').disabled = true;
+        document.getElementById('noPathBtn').disabled = false;
         document.getElementById('showOptimalBtn').disabled = true;
         document.getElementById('showOptimalBtn').textContent = '👁️ Show Optimal Path';
         this.clearStats();
@@ -512,6 +541,7 @@ class MazeGame {
 
         this.gameState = 'submitted';
         this.showOptimal = true; // Auto-show optimal path after submission
+        document.getElementById('noPathBtn').disabled = true;
         document.getElementById('showOptimalBtn').disabled = false;
 
         if (!this.optimalPath) {
@@ -520,6 +550,36 @@ class MazeGame {
             this.calculateScore();
             this.redraw();
         }
+    }
+
+    submitNoPathClaim() {
+        if (this.gameState !== 'playing') {
+            return;
+        }
+
+        this.gameState = 'submitted';
+        document.getElementById('submitBtn').disabled = true;
+        document.getElementById('noPathBtn').disabled = true;
+
+        if (!this.optimalPath) {
+            this.showOptimal = false;
+            document.getElementById('showOptimalBtn').disabled = true;
+            document.getElementById('userPathLength').textContent = 'No path claimed';
+            document.getElementById('optimalPathLength').textContent = 'No path';
+            document.getElementById('score').textContent = '100%';
+            this.showStatus('✅ Correct! No path exists between start and goal.', 'success');
+            this.redraw();
+            return;
+        }
+
+        this.showOptimal = true;
+        document.getElementById('showOptimalBtn').disabled = false;
+        document.getElementById('showOptimalBtn').textContent = '👁️ Hide Optimal Path';
+        document.getElementById('userPathLength').textContent = 'No path claimed';
+        document.getElementById('optimalPathLength').textContent = this.optimalPath.length;
+        document.getElementById('score').textContent = '0%';
+        this.showStatus('❌ A path exists. Optimal path is now revealed in yellow.', 'error');
+        this.redraw();
     }
 
     toggleOptimalPath() {

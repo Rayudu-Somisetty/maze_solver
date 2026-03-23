@@ -179,6 +179,22 @@ header p {
     cursor: not-allowed;
 }
 
+.btn-warning {
+    background: #e67e22;
+    color: white;
+}
+
+.btn-warning:hover:not(:disabled) {
+    background: #d35400;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(230, 126, 34, 0.4);
+}
+
+.btn-warning:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .btn-info {
     background: #9b59b6;
     color: white;
